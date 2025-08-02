@@ -10,6 +10,7 @@ The full description of the project is available in the [README.md](../README.md
 - Use `snake_case` for variables and functions.
 - Prefer `match` over `if let` when handling enums.
 - Avoid `unwrap()` in production code when you are not sure that it will not fail.
+- Use the most common Rust idioms and patterns.
 
 ## Libraries and Tools
 - sqlite for database management
@@ -23,6 +24,10 @@ The full description of the project is available in the [README.md](../README.md
 - Implement traits for modularity, if there are any.
 - Favor immutability and explicit lifetimes.
 - Avoid unnecessary cloning of data.
+- Use async/await for asynchronous operations.
+- use Settings.toml for configuration, create a `Settings` struct to read the settings from the file. Use `serde` for deserialization.
+- create "tests" folder in the root folder of the project (near 'src' folder) for unit tests
+
 
 ## Don't Suggest
 - Blocking I/O operations
