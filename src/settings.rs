@@ -1,11 +1,13 @@
+use anyhow::Result;
 use serde::Deserialize;
 use std::fs;
-use anyhow::Result;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Settings {
     pub db_file_path: String,
     pub db_schema_path: String,
+    pub host: String,
+    pub port: u16,
 }
 
 impl Settings {

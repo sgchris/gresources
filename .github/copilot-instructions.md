@@ -27,8 +27,9 @@ The full description of the project is available in the [README.md](../README.md
 - Use async/await for asynchronous operations.
 - use Settings.toml for configuration, create a `Settings` struct to read the settings from the file. Use `serde` for deserialization.
 - create "tests" folder in the root folder of the project (near 'src' folder) for unit tests
-
+- after every major change, run `cargo fmt` to format the code, `cargo clippy` to check for common mistakes and improve the code quality, and `cargo build` to ensure the code compiles correctly without errors and warnings.
 
 ## Don't Suggest
 - Blocking I/O operations
 - Unsafe code unless explicitly marked
+- Suppressing warnings without justification

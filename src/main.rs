@@ -34,7 +34,8 @@ async fn main() -> Result<()> {
     // Create app state
     let app_state = web::Data::new(AppState { db, logger });
 
-    println!("Starting GResources server on 127.0.0.1:8080");
+    let bind_address = format!("{}:{}", settings.host, settings.port);
+    println!("Starting GResources server on {}", bind_address);
 
     // Start HTTP server
     HttpServer::new(move || {
@@ -50,7 +51,7 @@ async fn main() -> Result<()> {
             .route("/", web::patch().to(handle_patch))
             .route("/", web::delete().to(handle_delete))
     })
-    .bind("127.0.0.1:8080")?
+    .bind(bind_address)?
     .run()
     .await?;
 

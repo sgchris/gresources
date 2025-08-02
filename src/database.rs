@@ -1,6 +1,6 @@
-use crate::models::{Resource, FolderInfo};
+use crate::models::{FolderInfo, Resource};
 use crate::settings::Settings;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, Row};
 use std::fs;
@@ -19,22 +19,47 @@ impl Database {
         }
 
         let conn = Connection::open(&settings.db_file_path)?;
-        
-        // Initialize the database schema
-        let schema = fs::read_to_string(&settings.db_schema_path)?;
-        conn.execute_batch(&schema)?;
+
+        // Initialize the database schema only if needed
+        Self::initialize_schema(&conn, &settings.db_schema_path)?;
 
         Ok(Self {
             connection: Arc::new(Mutex::new(conn)),
         })
     }
 
+    fn initialize_schema(conn: &Connection, schema_path: &str) -> Result<()> {
+        // Check if the resources table exists
+        let table_exists: bool = conn.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='resources'",
+            [],
+            |row| {
+                let count: i64 = row.get(0)?;
+                Ok(count > 0)
+            },
+        )?;
+
+        if !table_exists {
+            println!("Initializing database schema...");
+            let schema = fs::read_to_string(schema_path)?;
+            conn.execute_batch(&schema)?;
+            println!("Database schema initialized successfully");
+        } else {
+            println!("Database schema already exists, skipping initialization");
+        }
+
+        Ok(())
+    }
+
     pub fn create_resource(&self, resource: &Resource) -> Result<i64> {
-        let conn = self.connection.lock().map_err(|_| anyhow!("Failed to acquire database lock"))?;
-        
+        let conn = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("Failed to acquire database lock"))?;
+
         let mut stmt = conn.prepare(
             "INSERT INTO resources (user_id, path, content, size, created_at, updated_at) 
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         )?;
 
         let id = stmt.insert(params![
@@ -42,26 +67,37 @@ impl Database {
             resource.path,
             resource.content,
             resource.size,
-            resource.created_at.format("%Y-%m-%d %H:%M:%S%.3f").to_string(),
-            resource.updated_at.format("%Y-%m-%d %H:%M:%S%.3f").to_string(),
+            resource
+                .created_at
+                .format("%Y-%m-%d %H:%M:%S%.3f")
+                .to_string(),
+            resource
+                .updated_at
+                .format("%Y-%m-%d %H:%M:%S%.3f")
+                .to_string(),
         ])?;
 
         Ok(id)
     }
 
     pub fn get_resource(&self, path: &str) -> Result<Option<Resource>> {
-        let conn = self.connection.lock().map_err(|_| anyhow!("Failed to acquire database lock"))?;
-        
+        let conn = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("Failed to acquire database lock"))?;
+
         let mut stmt = conn.prepare(
             "SELECT id, user_id, path, content, size, created_at, updated_at 
-             FROM resources WHERE path = ?1"
+             FROM resources WHERE path = ?1",
         )?;
 
-        let result = stmt.query_row(params![path], |row| {
-            match self.row_to_resource(row) {
-                Ok(resource) => Ok(resource),
-                Err(_) => Err(rusqlite::Error::InvalidColumnType(0, "conversion error".to_string(), rusqlite::types::Type::Null)),
-            }
+        let result = stmt.query_row(params![path], |row| match self.row_to_resource(row) {
+            Ok(resource) => Ok(resource),
+            Err(_) => Err(rusqlite::Error::InvalidColumnType(
+                0,
+                "conversion error".to_string(),
+                rusqlite::types::Type::Null,
+            )),
         });
 
         match result {
@@ -72,17 +108,20 @@ impl Database {
     }
 
     pub fn update_resource(&self, path: &str, content: &str) -> Result<()> {
-        let conn = self.connection.lock().map_err(|_| anyhow!("Failed to acquire database lock"))?;
-        
+        let conn = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("Failed to acquire database lock"))?;
+
         let size = content.len() as i64;
         let updated_at = Utc::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
 
         let mut stmt = conn.prepare(
-            "UPDATE resources SET content = ?1, size = ?2, updated_at = ?3 WHERE path = ?4"
+            "UPDATE resources SET content = ?1, size = ?2, updated_at = ?3 WHERE path = ?4",
         )?;
 
         let rows_affected = stmt.execute(params![content, size, updated_at, path])?;
-        
+
         if rows_affected == 0 {
             return Err(anyhow!("Resource not found"));
         }
@@ -91,11 +130,14 @@ impl Database {
     }
 
     pub fn delete_resource(&self, path: &str) -> Result<()> {
-        let conn = self.connection.lock().map_err(|_| anyhow!("Failed to acquire database lock"))?;
-        
+        let conn = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("Failed to acquire database lock"))?;
+
         let mut stmt = conn.prepare("DELETE FROM resources WHERE path = ?1")?;
         let rows_affected = stmt.execute(params![path])?;
-        
+
         if rows_affected == 0 {
             return Err(anyhow!("Resource not found"));
         }
@@ -104,8 +146,11 @@ impl Database {
     }
 
     pub fn list_folder_resources(&self, folder_path: &str) -> Result<FolderInfo> {
-        let conn = self.connection.lock().map_err(|_| anyhow!("Failed to acquire database lock"))?;
-        
+        let conn = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("Failed to acquire database lock"))?;
+
         // Normalize folder path
         let normalized_folder = if folder_path == "/" {
             "".to_string()
@@ -117,7 +162,7 @@ impl Database {
         let mut stmt = conn.prepare(
             "SELECT path, created_at FROM resources 
              WHERE (path LIKE ?1 OR path = ?2)
-             ORDER BY path"
+             ORDER BY path",
         )?;
 
         let pattern = format!("{}/%", normalized_folder);
@@ -133,7 +178,7 @@ impl Database {
 
         for row in rows {
             let (path, created_at_str) = row?;
-            
+
             // If this is exactly the folder we're looking for
             if path == normalized_folder {
                 found_folder = true;
@@ -170,23 +215,29 @@ impl Database {
     }
 
     pub fn resource_exists(&self, path: &str) -> Result<bool> {
-        let conn = self.connection.lock().map_err(|_| anyhow!("Failed to acquire database lock"))?;
-        
+        let conn = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("Failed to acquire database lock"))?;
+
         let mut stmt = conn.prepare("SELECT COUNT(*) FROM resources WHERE path = ?1")?;
         let count: i64 = stmt.query_row(params![path], |row| row.get(0))?;
-        
+
         Ok(count > 0)
     }
 
     pub fn folder_is_empty(&self, folder_path: &str) -> Result<bool> {
-        let conn = self.connection.lock().map_err(|_| anyhow!("Failed to acquire database lock"))?;
-        
+        let conn = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("Failed to acquire database lock"))?;
+
         let normalized_folder = folder_path.trim_end_matches('/');
         let pattern = format!("{}/%", normalized_folder);
-        
+
         let mut stmt = conn.prepare("SELECT COUNT(*) FROM resources WHERE path LIKE ?1")?;
         let count: i64 = stmt.query_row(params![pattern], |row| row.get(0))?;
-        
+
         Ok(count == 0)
     }
 
@@ -209,12 +260,10 @@ impl Database {
         // Try to parse with microseconds first, then without
         match DateTime::parse_from_str(datetime_str, "%Y-%m-%d %H:%M:%S%.3f") {
             Ok(dt) => Ok(dt.with_timezone(&Utc)),
-            Err(_) => {
-                match DateTime::parse_from_str(datetime_str, "%Y-%m-%d %H:%M:%S") {
-                    Ok(dt) => Ok(dt.with_timezone(&Utc)),
-                    Err(e) => Err(anyhow!("Failed to parse datetime: {}", e)),
-                }
-            }
+            Err(_) => match DateTime::parse_from_str(datetime_str, "%Y-%m-%d %H:%M:%S") {
+                Ok(dt) => Ok(dt.with_timezone(&Utc)),
+                Err(e) => Err(anyhow!("Failed to parse datetime: {}", e)),
+            },
         }
     }
 }

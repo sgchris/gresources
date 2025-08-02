@@ -1,4 +1,4 @@
-CREATE TABLE resources (
+CREATE TABLE IF NOT EXISTS resources (
     id INTEGER PRIMARY KEY,
     user_id INTEGER DEFAULT 1,
     path TEXT UNIQUE NOT NULL,
@@ -8,4 +8,4 @@ CREATE TABLE resources (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_path ON resources(path);
+CREATE INDEX IF NOT EXISTS idx_path ON resources(path);

@@ -1,9 +1,9 @@
-use log::{info, error};
+use anyhow::Result;
+use log::{error, info};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use anyhow::Result;
 
 pub struct Logger {
     log_file: Mutex<std::fs::File>,
@@ -13,7 +13,7 @@ impl Logger {
     pub fn new() -> Result<Self> {
         let log_dir = Self::get_log_directory()?;
         std::fs::create_dir_all(&log_dir)?;
-        
+
         let log_file_path = log_dir.join("gresources.log");
         let file = OpenOptions::new()
             .create(true)
@@ -26,7 +26,9 @@ impl Logger {
     }
 
     pub fn log_write_operation(&self, operation: &str, path: &str, success: bool) {
-        let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+        let timestamp = chrono::Utc::now()
+            .format("%Y-%m-%d %H:%M:%S%.3f")
+            .to_string();
         let status = if success { "SUCCESS" } else { "FAILED" };
         let log_entry = format!("[{}] {} {} - {}\n", timestamp, operation, path, status);
 

@@ -1,7 +1,7 @@
 use crate::database::Database;
 use crate::logging::Logger;
 use crate::models::Resource;
-use crate::validation::{validate_path, validate_content, normalize_path};
+use crate::validation::{normalize_path, validate_content, validate_path};
 use actix_web::{web, HttpRequest, HttpResponse, Result as ActixResult};
 use std::sync::Arc;
 
@@ -16,15 +16,15 @@ pub async fn handle_post(
     data: web::Data<AppState>,
 ) -> ActixResult<HttpResponse> {
     let path = normalize_path(req.path());
-    
+
     // Log the operation start
     data.logger.log_write_operation("POST", &path, false);
-    
+
     // Validate path and content
     if let Err(e) = validate_path(&path) {
         return Ok(HttpResponse::BadRequest().body(format!("Invalid path: {}", e)));
     }
-    
+
     if let Err(e) = validate_content(&body) {
         return Ok(HttpResponse::BadRequest().body(format!("Invalid content: {}", e)));
     }
@@ -42,24 +42,22 @@ pub async fn handle_post(
 
     // Create the resource
     let resource = Resource::new(path.clone(), body);
-    
+
     match data.db.create_resource(&resource) {
         Ok(_) => {
             data.logger.log_write_operation("POST", &path, true);
-            Ok(HttpResponse::Ok().body("Resource created"))
+            Ok(HttpResponse::Created().finish()) // 201 Created with no body
         }
         Err(e) => {
-            Ok(HttpResponse::InternalServerError().body(format!("Failed to create resource: {}", e)))
+            Ok(HttpResponse::InternalServerError()
+                .body(format!("Failed to create resource: {}", e)))
         }
     }
 }
 
-pub async fn handle_get(
-    req: HttpRequest,
-    data: web::Data<AppState>,
-) -> ActixResult<HttpResponse> {
+pub async fn handle_get(req: HttpRequest, data: web::Data<AppState>) -> ActixResult<HttpResponse> {
     let path = normalize_path(req.path());
-    
+
     if let Err(e) = validate_path(&path) {
         return Ok(HttpResponse::BadRequest().body(format!("Invalid path: {}", e)));
     }
@@ -68,15 +66,25 @@ pub async fn handle_get(
     match data.db.get_resource(&path) {
         Ok(Some(resource)) => {
             let mut response = HttpResponse::Ok();
-            
+
             // Add metadata headers
-            response.insert_header(("gresource-created-at", 
-                resource.created_at.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()));
-            response.insert_header(("gresource-updated-at", 
-                resource.updated_at.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()));
+            response.insert_header((
+                "gresource-created-at",
+                resource
+                    .created_at
+                    .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                    .to_string(),
+            ));
+            response.insert_header((
+                "gresource-updated-at",
+                resource
+                    .updated_at
+                    .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                    .to_string(),
+            ));
             response.insert_header(("gresource-folder", resource.get_folder_path()));
             response.insert_header(("gresource-size", resource.size.to_string()));
-            
+
             Ok(response.body(resource.content.unwrap_or_default()))
         }
         Ok(None) => {
@@ -84,24 +92,25 @@ pub async fn handle_get(
             match data.db.list_folder_resources(&path) {
                 Ok(folder_info) => {
                     let mut response = HttpResponse::Ok();
-                    
+
                     // Add folder metadata headers
-                    response.insert_header(("gresource-created-at", 
-                        folder_info.created_at.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()));
+                    response.insert_header((
+                        "gresource-created-at",
+                        folder_info
+                            .created_at
+                            .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                            .to_string(),
+                    ));
                     response.insert_header(("gresource-folder", folder_info.path));
-                    
+
                     // Create response body with resource paths
                     let body = folder_info.resources.join("\n");
                     Ok(response.body(body))
                 }
-                Err(_) => {
-                    Ok(HttpResponse::NotFound().body("Resource not found"))
-                }
+                Err(_) => Ok(HttpResponse::NotFound().body("Resource not found")),
             }
         }
-        Err(e) => {
-            Ok(HttpResponse::InternalServerError().body(format!("Database error: {}", e)))
-        }
+        Err(e) => Ok(HttpResponse::InternalServerError().body(format!("Database error: {}", e))),
     }
 }
 
@@ -111,14 +120,14 @@ pub async fn handle_patch(
     data: web::Data<AppState>,
 ) -> ActixResult<HttpResponse> {
     let path = normalize_path(req.path());
-    
+
     // Log the operation start
     data.logger.log_write_operation("PATCH", &path, false);
-    
+
     if let Err(e) = validate_path(&path) {
         return Ok(HttpResponse::BadRequest().body(format!("Invalid path: {}", e)));
     }
-    
+
     if let Err(e) = validate_content(&body) {
         return Ok(HttpResponse::BadRequest().body(format!("Invalid content: {}", e)));
     }
@@ -138,10 +147,11 @@ pub async fn handle_patch(
     match data.db.update_resource(&path, &body) {
         Ok(_) => {
             data.logger.log_write_operation("PATCH", &path, true);
-            Ok(HttpResponse::Ok().body("Resource updated"))
+            Ok(HttpResponse::NoContent().finish()) // 204 No Content with no body
         }
         Err(e) => {
-            Ok(HttpResponse::InternalServerError().body(format!("Failed to update resource: {}", e)))
+            Ok(HttpResponse::InternalServerError()
+                .body(format!("Failed to update resource: {}", e)))
         }
     }
 }
@@ -151,10 +161,10 @@ pub async fn handle_delete(
     data: web::Data<AppState>,
 ) -> ActixResult<HttpResponse> {
     let path = normalize_path(req.path());
-    
+
     // Log the operation start
     data.logger.log_write_operation("DELETE", &path, false);
-    
+
     if let Err(e) = validate_path(&path) {
         return Ok(HttpResponse::BadRequest().body(format!("Invalid path: {}", e)));
     }
@@ -166,11 +176,10 @@ pub async fn handle_delete(
             match data.db.delete_resource(&path) {
                 Ok(_) => {
                     data.logger.log_write_operation("DELETE", &path, true);
-                    Ok(HttpResponse::Ok().body("Resource deleted"))
+                    Ok(HttpResponse::NoContent().finish()) // 204 No Content with no body
                 }
-                Err(e) => {
-                    Ok(HttpResponse::InternalServerError().body(format!("Failed to delete resource: {}", e)))
-                }
+                Err(e) => Ok(HttpResponse::InternalServerError()
+                    .body(format!("Failed to delete resource: {}", e))),
             }
         }
         Ok(None) => {
@@ -179,18 +188,12 @@ pub async fn handle_delete(
                 Ok(true) => {
                     // It's an empty folder, we can "delete" it (no actual deletion needed since folders are implicit)
                     data.logger.log_write_operation("DELETE", &path, true);
-                    Ok(HttpResponse::Ok().body("Folder deleted"))
+                    Ok(HttpResponse::NoContent().finish()) // 204 No Content with no body
                 }
-                Ok(false) => {
-                    Ok(HttpResponse::BadRequest().body("Cannot delete non-empty folder"))
-                }
-                Err(_) => {
-                    Ok(HttpResponse::NotFound().body("Resource or folder not found"))
-                }
+                Ok(false) => Ok(HttpResponse::BadRequest().body("Cannot delete non-empty folder")),
+                Err(_) => Ok(HttpResponse::NotFound().body("Resource or folder not found")),
             }
         }
-        Err(e) => {
-            Ok(HttpResponse::InternalServerError().body(format!("Database error: {}", e)))
-        }
+        Err(e) => Ok(HttpResponse::InternalServerError().body(format!("Database error: {}", e))),
     }
 }

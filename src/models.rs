@@ -16,7 +16,7 @@ impl Resource {
     pub fn new(path: String, content: String) -> Self {
         let now = Utc::now();
         let size = content.len() as i64;
-        
+
         Self {
             id: None,
             user_id: 1, // Default user_id as per requirements

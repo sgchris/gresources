@@ -1,2 +1,4 @@
 db_file_path = "db/database.sqlite"
 db_schema_path = "db/schema.sql"
+host = "127.0.0.1"
+port = 11088

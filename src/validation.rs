@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 
 const MAX_RESOURCE_NAME_LENGTH: usize = 100;
 const MAX_RESOURCE_SIZE: usize = 5 * 1024 * 1024; // 5MB
@@ -23,15 +23,21 @@ pub fn validate_path(path: &str) -> Result<()> {
     // Validate each path segment
     for segment in segments {
         if segment.len() > MAX_RESOURCE_NAME_LENGTH {
-            return Err(anyhow!("Resource name cannot exceed {} characters", MAX_RESOURCE_NAME_LENGTH));
+            return Err(anyhow!(
+                "Resource name cannot exceed {} characters",
+                MAX_RESOURCE_NAME_LENGTH
+            ));
         }
-        
+
         if segment.contains("..") || segment.contains('\0') {
             return Err(anyhow!("Invalid characters in path"));
         }
-        
+
         // Check for reserved characters that might cause issues
-        if segment.chars().any(|c| matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*')) {
+        if segment
+            .chars()
+            .any(|c| matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*'))
+        {
             return Err(anyhow!("Path contains reserved characters"));
         }
     }
@@ -41,9 +47,12 @@ pub fn validate_path(path: &str) -> Result<()> {
 
 pub fn validate_content(content: &str) -> Result<()> {
     if content.len() > MAX_RESOURCE_SIZE {
-        return Err(anyhow!("Content size cannot exceed {} bytes", MAX_RESOURCE_SIZE));
+        return Err(anyhow!(
+            "Content size cannot exceed {} bytes",
+            MAX_RESOURCE_SIZE
+        ));
     }
-    
+
     Ok(())
 }
 
@@ -66,11 +75,11 @@ mod tests {
         assert!(validate_path("/").is_ok());
         assert!(validate_path("").is_err());
         assert!(validate_path("no-leading-slash").is_err());
-        
+
         // Test max depth
         let deep_path = "/a/b/c/d/e/f"; // 6 levels - should fail
         assert!(validate_path(deep_path).is_err());
-        
+
         let max_depth_path = "/a/b/c/d/e"; // 5 levels - should pass
         assert!(validate_path(max_depth_path).is_ok());
     }
@@ -78,7 +87,7 @@ mod tests {
     #[test]
     fn test_validate_content() {
         assert!(validate_content("small content").is_ok());
-        
+
         let large_content = "x".repeat(MAX_RESOURCE_SIZE + 1);
         assert!(validate_content(&large_content).is_err());
     }
