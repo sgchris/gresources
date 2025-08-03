@@ -5,7 +5,7 @@ REM GResources API Test Script - Windows Batch File
 REM This script tests all the CRUD operations of the GResources API using CURL
 
 REM Configuration
-set BASE_URL=http://127.0.0.1:11088
+set BASE_URL=http://127.0.0.1:8002
 set TEST_FOLDER=/test-folder
 
 REM Generate a random resource name
