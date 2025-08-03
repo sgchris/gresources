@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::{error, info};
+use log::error;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
@@ -40,8 +40,40 @@ impl Logger {
             }
         }
 
-        // Also log to console
-        info!("{} {} - {}", operation, path, status);
+        // Also log to console (simple version)
+        println!("{} {} - {}", operation, path, status);
+    }
+
+    // Enhanced method for detailed logging to file
+    pub fn log_detailed(&self, level: &str, message: &str) {
+        let timestamp = chrono::Utc::now()
+            .format("%Y-%m-%d %H:%M:%S%.3f")
+            .to_string();
+        let log_entry = format!("[{}] {} {}\n", timestamp, level, message);
+
+        if let Ok(mut file) = self.log_file.lock() {
+            if let Err(e) = file.write_all(log_entry.as_bytes()) {
+                error!("Failed to write to log file: {}", e);
+            } else {
+                let _ = file.flush();
+            }
+        }
+    }
+
+    pub fn log_info(&self, message: &str) {
+        self.log_detailed("INFO", message);
+    }
+
+    pub fn log_debug(&self, message: &str) {
+        self.log_detailed("DEBUG", message);
+    }
+
+    pub fn log_warn(&self, message: &str) {
+        self.log_detailed("WARN", message);
+    }
+
+    pub fn log_error(&self, message: &str) {
+        self.log_detailed("ERROR", message);
     }
 
     #[cfg(target_os = "windows")]

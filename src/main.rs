@@ -16,12 +16,16 @@ use crate::settings::Settings;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
-    // Initialize logging
+    // Initialize logging with minimal console output (only errors)
+    std::env::set_var("RUST_LOG", "error");
     env_logger::init();
+
+    println!("Starting GResources application...");
 
     // Load settings
     let settings = Settings::load()?;
-    println!("Settings loaded: {:?}", settings);
+    println!("Settings loaded: host={}, port={}", 
+               settings.host, settings.port);
 
     // Initialize database
     let db = Arc::new(Database::new(&settings)?);
@@ -29,7 +33,7 @@ async fn main() -> Result<()> {
 
     // Initialize logger
     let logger = Arc::new(Logger::new()?);
-    println!("Logger initialized");
+    println!("Application logger initialized");
 
     // Create app state
     let app_state = web::Data::new(AppState { db, logger });
