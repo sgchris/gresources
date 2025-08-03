@@ -1,7 +1,7 @@
 use crate::models::{FolderInfo, Resource};
 use crate::settings::Settings;
 use anyhow::{anyhow, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, SecondsFormat, Utc};
 use rusqlite::{params, Connection, Row};
 use std::fs;
 use std::path::Path;
@@ -69,11 +69,11 @@ impl Database {
             resource.size,
             resource
                 .created_at
-                .format("%Y-%m-%d %H:%M:%S%.3f")
+                .to_rfc3339_opts(SecondsFormat::Millis, true)
                 .to_string(),
             resource
                 .updated_at
-                .format("%Y-%m-%d %H:%M:%S%.3f")
+                .to_rfc3339_opts(SecondsFormat::Millis, true)
                 .to_string(),
         ])?;
 
@@ -91,19 +91,26 @@ impl Database {
              FROM resources WHERE path = ?1",
         )?;
 
-        let result = stmt.query_row(params![path], |row| match self.row_to_resource(row) {
-            Ok(resource) => Ok(resource),
-            Err(_) => Err(rusqlite::Error::InvalidColumnType(
-                0,
-                "conversion error".to_string(),
-                rusqlite::types::Type::Null,
-            )),
+        let result = stmt.query_row(params![path], |row| {
+            // Better error handling - let's see exactly what's causing the issue
+            match self.row_to_resource(row) {
+                Ok(resource) => Ok(resource),
+                Err(e) => {
+                    // Log the actual error to help debug
+                    eprintln!("Error converting row to resource: {}", e);
+                    Err(rusqlite::Error::InvalidColumnType(
+                        0,
+                        format!("conversion error: {}", e),
+                        rusqlite::types::Type::Null,
+                    ))
+                }
+            }
         });
 
         match result {
             Ok(resource) => Ok(Some(resource)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(anyhow!(e)),
+            Err(e) => Err(anyhow!("Database query error: {}", e)),
         }
     }
 
@@ -114,7 +121,7 @@ impl Database {
             .map_err(|_| anyhow!("Failed to acquire database lock"))?;
 
         let size = content.len() as i64;
-        let updated_at = Utc::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+        let updated_at = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true).to_string();
 
         let mut stmt = conn.prepare(
             "UPDATE resources SET content = ?1, size = ?2, updated_at = ?3 WHERE path = ?4",
@@ -242,28 +249,30 @@ impl Database {
     }
 
     fn row_to_resource(&self, row: &Row) -> Result<Resource> {
-        let created_at_str: String = row.get(5)?;
-        let updated_at_str: String = row.get(6)?;
+        // Get values with explicit error handling
+        let id: i64 = row.get(0).map_err(|e| anyhow!("Failed to get id: {}", e))?;
+        let user_id: i64 = row.get(1).map_err(|e| anyhow!("Failed to get user_id: {}", e))?;
+        let path: String = row.get(2).map_err(|e| anyhow!("Failed to get path: {}", e))?;
+        let content: Option<String> = row.get(3).map_err(|e| anyhow!("Failed to get content: {}", e))?;
+        let size: i64 = row.get(4).map_err(|e| anyhow!("Failed to get size: {}", e))?;
+        let created_at_str: String = row.get(5).map_err(|e| anyhow!("Failed to get created_at: {}", e))?;
+        let updated_at_str: String = row.get(6).map_err(|e| anyhow!("Failed to get updated_at: {}", e))?;
 
         Ok(Resource {
-            id: Some(row.get(0)?),
-            user_id: row.get(1)?,
-            path: row.get(2)?,
-            content: row.get(3)?,
-            size: row.get(4)?,
+            id: Some(id),
+            user_id,
+            path,
+            content,
+            size,
             created_at: self.parse_datetime(&created_at_str)?,
             updated_at: self.parse_datetime(&updated_at_str)?,
         })
     }
 
     fn parse_datetime(&self, datetime_str: &str) -> Result<DateTime<Utc>> {
-        // Try to parse with microseconds first, then without
-        match DateTime::parse_from_str(datetime_str, "%Y-%m-%d %H:%M:%S%.3f") {
+        match DateTime::parse_from_rfc3339(datetime_str) {
             Ok(dt) => Ok(dt.with_timezone(&Utc)),
-            Err(_) => match DateTime::parse_from_str(datetime_str, "%Y-%m-%d %H:%M:%S") {
-                Ok(dt) => Ok(dt.with_timezone(&Utc)),
-                Err(e) => Err(anyhow!("Failed to parse datetime: {}", e)),
-            },
+            Err(e) => Err(anyhow!("Failed to parse RFC3339 datetime: {}", e)),
         }
     }
 }
