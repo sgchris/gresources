@@ -151,9 +151,9 @@ if test_http_response "GET updated resource" 200 "$status" "$body"; then
 fi
 echo ""
 
-echo -e "${CYAN}11. Testing DELETE resource (should be 204)...${NC}"
+echo -e "${CYAN}11. Testing DELETE resource (should be 200)...${NC}"
 status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE "$FULL_URL")
-test_http_response "DELETE resource" 204 "$status" "(no body expected)"
+test_http_response "DELETE resource" 200 "$status" "(no body expected)"
 echo ""
 
 echo -e "${CYAN}9. Testing GET deleted resource (should be 404)...${NC}"

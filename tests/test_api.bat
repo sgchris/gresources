@@ -73,7 +73,7 @@ curl -s -w "Status: %%{http_code}" -X GET "!FULL_URL!"
 echo.
 echo.
 
-echo %CYAN%8. Testing DELETE resource (should be 204)...%NC%
+echo %CYAN%8. Testing DELETE resource (should be 200)...%NC%
 curl -s -w "Status: %%{http_code}" -X DELETE "!FULL_URL!"
 echo.
 echo.
@@ -100,7 +100,7 @@ echo - Step 4: 200 (resource retrieved)
 echo - Step 5: 200 (folder listing)
 echo - Step 6: 204 (resource updated)
 echo - Step 7: 200 (updated resource retrieved)
-echo - Step 8: 204 (resource deleted)
+echo - Step 8: 200 (resource deleted)
 echo - Step 9: 404 (deleted resource not found)
 echo - Step 10: 200 (folder listing after deletion)
 

@@ -241,7 +241,7 @@ pub async fn handle_delete(
                 Ok(_) => {
                     data.logger.log_info(&format!("Resource deleted successfully: {}", path));
                     data.logger.log_write_operation("DELETE", &path, true);
-                    Ok(HttpResponse::NoContent().finish()) // 204 No Content with no body
+                    Ok(HttpResponse::Ok().finish()) // 200 OK with no body
                 }
                 Err(e) => {
                     data.logger.log_error(&format!("Failed to delete resource {}: {}", path, e));
@@ -259,7 +259,7 @@ pub async fn handle_delete(
                     data.logger.log_info(&format!("Found empty folder to delete: {}", path));
                     // It's an empty folder, we can "delete" it (no actual deletion needed since folders are implicit)
                     data.logger.log_write_operation("DELETE", &path, true);
-                    Ok(HttpResponse::NoContent().finish()) // 204 No Content with no body
+                    Ok(HttpResponse::Ok().finish()) // 200 OK with no body
                 }
                 Ok(false) => {
                     data.logger.log_warn(&format!("Attempt to delete non-empty folder: {}", path));
